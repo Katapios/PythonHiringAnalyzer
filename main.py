@@ -34,61 +34,103 @@ ROLE_CATALOG = [
         "label_ru": "Python разработчик",
         "label_en": "Python Developer",
         "queries": ["python developer", "python разработчик", "python engineer"],
+        "ai_keywords": ["Python", "FastAPI", "Django", "REST API", "SQL", "PostgreSQL", "Docker", "asyncio", "microservices", "pytest"],
     },
     {
         "label_ru": "Java разработчик",
         "label_en": "Java Developer",
         "queries": ["java developer", "java разработчик", "java engineer"],
+        "ai_keywords": ["Java", "Spring Boot", "Hibernate", "Microservices", "REST API", "Kafka", "SQL", "Docker", "Kubernetes", "JUnit"],
     },
     {
         "label_ru": "Frontend разработчик",
         "label_en": "Frontend Developer",
         "queries": ["frontend developer", "frontend разработчик", "react developer", "javascript developer"],
+        "ai_keywords": ["JavaScript", "TypeScript", "React", "Next.js", "Redux", "HTML", "CSS", "REST API", "GraphQL", "Webpack"],
     },
     {
         "label_ru": "Backend разработчик",
         "label_en": "Backend Developer",
         "queries": ["backend developer", "backend разработчик", "backend engineer"],
+        "ai_keywords": ["Backend", "REST API", "Microservices", "SQL", "PostgreSQL", "Redis", "Kafka", "Docker", "Kubernetes", "CI/CD"],
     },
     {
         "label_ru": "Fullstack разработчик",
         "label_en": "Fullstack Developer",
         "queries": ["fullstack developer", "fullstack разработчик", "full stack developer"],
+        "ai_keywords": ["JavaScript", "TypeScript", "React", "Node.js", "REST API", "SQL", "PostgreSQL", "Docker", "AWS", "CI/CD"],
     },
     {
         "label_ru": "DevOps инженер",
         "label_en": "DevOps Engineer",
         "queries": ["devops engineer", "devops инженер", "site reliability engineer", "sre"],
+        "ai_keywords": ["DevOps", "CI/CD", "Docker", "Kubernetes", "Terraform", "Ansible", "AWS", "Linux", "Monitoring", "Infrastructure as Code"],
     },
     {
         "label_ru": "Data Scientist",
         "label_en": "Data Scientist",
         "queries": ["data scientist", "data science", "специалист по data science"],
+        "ai_keywords": ["Python", "Machine Learning", "Pandas", "NumPy", "SQL", "A/B Testing", "Statistics", "scikit-learn", "Data Analysis", "Experiment Design"],
     },
     {
         "label_ru": "ML инженер",
         "label_en": "Machine Learning Engineer",
         "queries": ["machine learning engineer", "ml engineer", "инженер машинного обучения"],
+        "ai_keywords": ["Machine Learning", "Python", "PyTorch", "TensorFlow", "MLOps", "Docker", "Kubernetes", "Feature Engineering", "Model Deployment", "Airflow"],
     },
     {
         "label_ru": "QA инженер",
         "label_en": "QA Engineer",
         "queries": ["qa engineer", "qa инженер", "test engineer", "тестировщик"],
+        "ai_keywords": ["QA", "Test Automation", "Selenium", "Playwright", "API Testing", "Postman", "pytest", "CI/CD", "Regression Testing", "Test Cases"],
     },
     {
         "label_ru": "Android разработчик",
         "label_en": "Android Developer",
         "queries": ["android developer", "android разработчик"],
+        "ai_keywords": ["Android", "Kotlin", "Java", "Jetpack Compose", "MVVM", "REST API", "Coroutines", "Room", "Gradle", "Firebase"],
     },
     {
         "label_ru": "iOS разработчик",
         "label_en": "iOS Developer",
         "queries": ["ios developer", "ios разработчик"],
+        "ai_keywords": ["iOS", "Swift", "UIKit", "SwiftUI", "MVVM", "REST API", "Core Data", "Xcode", "Unit Testing", "App Store"],
     },
     {
         "label_ru": "Product Manager",
         "label_en": "Product Manager",
         "queries": ["product manager", "продакт менеджер", "менеджер продукта"],
+        "ai_keywords": ["Product Management", "Roadmap", "Backlog", "User Research", "A/B Testing", "Analytics", "Stakeholder Management", "Go-to-Market", "Jira", "SQL"],
+    },
+    {
+        "label_ru": "Менеджер разработки ПО",
+        "label_en": "Software Development Manager",
+        "queries": ["software development manager", "менеджер разработки", "руководитель разработки"],
+        "ai_keywords": ["Software Development Manager", "Team Leadership", "People Management", "Delivery Management", "Agile", "Scrum", "Hiring", "Mentoring", "Roadmap Planning", "Cross-functional Leadership"],
+    },
+    {
+        "label_ru": "Инженерный менеджер",
+        "label_en": "Engineering Manager",
+        "queries": ["engineering manager", "инженерный менеджер", "технический менеджер"],
+        "ai_keywords": ["Engineering Manager", "People Management", "Technical Leadership", "System Design", "Architecture", "Stakeholder Management", "Performance Reviews", "Hiring", "Mentoring", "Agile Delivery"],
+    },
+    {
+        "label_ru": "Директор разработки ПО",
+        "label_en": "Director of Software Engineering",
+        "queries": ["director of software engineering", "директор по разработке", "директор разработки"],
+        "ai_keywords": ["Director of Software Engineering", "Engineering Strategy", "Organization Scaling", "Budgeting", "Cross-functional Leadership", "Engineering Excellence", "Portfolio Management", "Executive Communication", "Transformation", "Delivery Governance"],
+    },
+    {
+        "label_ru": "Руководитель разработки / R&D",
+        "label_en": "Head of Development / R&D",
+        "queries": ["head of development", "head of r&d", "руководитель разработки", "руководитель r&d"],
+        "ai_keywords": ["Head of Development", "R&D", "Technical Strategy", "Innovation", "Architecture", "Team Leadership", "Product Delivery", "Hiring", "Process Improvement", "Stakeholder Management"],
+    },
+    {
+        "label_ru": "Full-stack разработчик с уклоном в AI",
+        "label_en": "Full-stack Developer (AI-focused)",
+        "queries": ["full-stack developer ai", "fullstack developer ai", "ai developer", "llm engineer", "generative ai engineer"],
+        "ai_keywords": ["LLM", "Generative AI", "Prompt Engineering", "RAG", "OpenAI API", "Python", "TypeScript", "React", "Vector Database", "AI Agents"],
     },
 ]
 
@@ -425,10 +467,18 @@ def enrich_vacancies_with_details(vacancies: List[Dict]) -> Counter:
             skills.update(details.get("skills_from_page", []))
 
             row["skills"] = sorted(skills)
+            row["description"] = details.get("description", "")
+            row["requirements"] = details.get("requirements", "")
             for skill in row["skills"]:
                 skill_counter[skill] += 1
 
     return skill_counter
+
+
+def normalize_multiline_text(text: str) -> str:
+    if not text:
+        return ""
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def analyze_demand() -> List[Dict]:
@@ -461,6 +511,7 @@ def analyze_demand() -> List[Dict]:
                     "name_ru": role["label_ru"],
                     "name_en": role["label_en"],
                     "queries": role["queries"],
+                    "ai_keywords": role.get("ai_keywords", []),
                     "vacancies": estimated_market_count,
                     "query_counts": query_counts,
                     "examples": vacancies[:MAX_EXAMPLES_PER_ROLE],
@@ -497,6 +548,7 @@ def print_results(results: List[Dict]) -> None:
         print(f"{index}. {item['name']}")
         print(f"   Оценка спроса: {item['vacancies']} | Проанализировано вакансий: {item['analyzed_count']}")
         print(f"   Запросы: {', '.join(item['queries'])}")
+        print(f"   ATS/AI keywords: {', '.join(item['ai_keywords'])}")
         print(f"   Разбивка по запросам: {', '.join(f'{query}={count}' for query, count in item['query_counts'].items())}")
         print(f"   Зарплаты: {'; '.join(item['salary_summary'])}")
         print("-" * 70)
@@ -516,6 +568,10 @@ def print_results(results: List[Dict]) -> None:
                 print(f"        🏢 {vacancy['company']} | 📍 {vacancy['city']} | 💰 {vacancy['salary']}")
                 if vacancy.get("skills"):
                     print(f"        🛠️ {', '.join(vacancy['skills'])}")
+                if vacancy.get("requirements"):
+                    print(f"        📋 Требования: {normalize_multiline_text(vacancy['requirements'])}")
+                elif vacancy.get("description"):
+                    print(f"        📄 Описание: {normalize_multiline_text(vacancy['description'])}")
         else:
             print("\n   📌 Примеры вакансий не найдены")
 
@@ -537,6 +593,7 @@ def save_to_file(results: List[Dict]) -> None:
             file.write(f"   Оценка спроса: {item['vacancies']}\n")
             file.write(f"   Проанализировано вакансий: {item['analyzed_count']}\n")
             file.write(f"   Запросы: {', '.join(item['queries'])}\n")
+            file.write(f"   ATS/AI keywords: {', '.join(item['ai_keywords'])}\n")
             file.write(f"   Разбивка по запросам: {', '.join(f'{query}={count}' for query, count in item['query_counts'].items())}\n")
             file.write(f"   Зарплаты: {'; '.join(item['salary_summary'])}\n")
 
@@ -555,6 +612,10 @@ def save_to_file(results: List[Dict]) -> None:
                     file.write(f"        Компания: {vacancy['company']} | Город: {vacancy['city']} | Зарплата: {vacancy['salary']}\n")
                     if vacancy.get("skills"):
                         file.write(f"        Навыки: {', '.join(vacancy['skills'])}\n")
+                    if vacancy.get("requirements"):
+                        file.write(f"        Требования: {normalize_multiline_text(vacancy['requirements'])}\n")
+                    elif vacancy.get("description"):
+                        file.write(f"        Описание: {normalize_multiline_text(vacancy['description'])}\n")
                     file.write(f"        Ссылка: {vacancy['url']}\n")
             file.write("\n" + "-" * 80 + "\n\n")
 
