@@ -33,6 +33,7 @@ MAX_EXAMPLES_PER_ROLE = 5
 MIN_MARKET_DEMAND = 5
 MIN_ANALYZED_VACANCIES = 3
 TOP_DEMANDED_ROLES_LIMIT = 10
+MIN_ROLE_RELEVANCE_SCORE = 2
 
 ROLE_CATALOG = [
     {
@@ -126,6 +127,8 @@ ROLE_CATALOG = [
         "queries": ["team lead", "тимлид", "руководитель команды разработки", "руководитель группы разработки"],
         "ai_keywords": ["Team Lead", "People Management", "Team Leadership", "Agile", "Scrum", "Hiring", "Mentoring", "Delivery Management", "Roadmap Planning", "Cross-functional Communication"],
         "title_keywords": ["team lead", "тимлид", "руководитель команды разработки", "руководитель группы разработки", "teamlead"],
+        "title_excludes": ["adops", "1с", "seo", "marketing", "salesforce", "sap", "bi", "hr"],
+        "relevance_keywords": ["developer", "development", "software", "engineering", "backend", "frontend", "fullstack", "python", "java", "kotlin", "golang", "devops", "platform"],
     },
     {
         "label_ru": "Техлид / Технический руководитель",
@@ -133,6 +136,8 @@ ROLE_CATALOG = [
         "queries": ["tech lead", "technical lead", "техлид", "технический руководитель", "технический лидер"],
         "ai_keywords": ["Tech Lead", "Technical Leadership", "System Design", "Architecture", "Code Review", "Mentoring", "Highload Systems", "Microservices", "Stakeholder Management", "Delivery"],
         "title_keywords": ["tech lead", "technical lead", "техлид", "технический руководитель", "технический лидер"],
+        "title_excludes": ["1с", "seo", "marketing", "salesforce", "sap", "bi"],
+        "relevance_keywords": ["software", "engineering", "backend", "frontend", "platform", "architecture", "microservices", "python", "java", "kotlin", "golang", "devops"],
     },
     {
         "label_ru": "Engineering Manager / Руководитель разработки",
@@ -140,6 +145,8 @@ ROLE_CATALOG = [
         "queries": ["engineering manager", "руководитель разработки", "head of engineering", "development manager"],
         "ai_keywords": ["Engineering Manager", "People Management", "Technical Leadership", "System Design", "Architecture", "Performance Reviews", "Hiring", "Mentoring", "Delivery Management", "Stakeholder Management"],
         "title_keywords": ["engineering manager", "head of engineering", "руководитель разработки", "development manager"],
+        "title_excludes": ["1с", "adops", "seo", "marketing", "salesforce", "sap", "bi", "hr"],
+        "relevance_keywords": ["software", "engineering", "development", "architecture", "backend", "frontend", "platform", "devops", "python", "java", "golang", "mobile"],
     },
     {
         "label_ru": "Архитектор решений / Software Architect",
@@ -147,6 +154,8 @@ ROLE_CATALOG = [
         "queries": ["solution architect", "software architect", "архитектор решений", "системный архитектор"],
         "ai_keywords": ["Solution Architect", "Software Architect", "System Design", "Architecture", "Integration", "UML", "C4 Model", "Technical Documentation", "Highload Systems", "Stakeholder Management"],
         "title_keywords": ["solution architect", "software architect", "архитектор решений", "системный архитектор", "технический архитектор"],
+        "title_excludes": ["1с", "sap", "bi", "data architect", "security architect"],
+        "relevance_keywords": ["software", "architecture", "system design", "integration", "microservices", "backend", "cloud", "highload"],
     },
     {
         "label_ru": "Full-stack разработчик с уклоном в AI",
@@ -350,6 +359,49 @@ def calculate_keyword_coverage(skills: List[str], ai_keywords: List[str]) -> Tup
     return matched, missing
 
 
+def calculate_role_relevance_score(role: Dict, vacancy: Dict) -> int:
+    text_parts = [
+        vacancy.get("title", ""),
+        vacancy.get("requirements", ""),
+        vacancy.get("description", ""),
+        " ".join(vacancy.get("skills", [])),
+    ]
+    full_text = normalize_title(" ".join(text_parts))
+    score = 0
+
+    if any(keyword.lower() in normalize_title(vacancy.get("title", "")) for keyword in role.get("title_keywords", [])):
+        score += 2
+
+    if any(keyword.lower() in full_text for keyword in role.get("relevance_keywords", [])):
+        score += 1
+
+    matched_keywords, _ = calculate_keyword_coverage(vacancy.get("skills", []), role.get("ai_keywords", []))
+    if matched_keywords:
+        score += 1
+
+    if any(keyword.lower() in full_text for keyword in role.get("title_excludes", [])):
+        score -= 3
+
+    return score
+
+
+def filter_relevant_vacancies(role: Dict, vacancies: List[Dict]) -> Tuple[List[Dict], Counter]:
+    filtered = []
+    skill_counter = Counter()
+
+    for vacancy in vacancies:
+        relevance_score = calculate_role_relevance_score(role, vacancy)
+        vacancy["relevance_score"] = relevance_score
+        if relevance_score < MIN_ROLE_RELEVANCE_SCORE:
+            continue
+        filtered.append(vacancy)
+        for skill in vacancy.get("skills", []):
+            skill_counter[skill] += 1
+
+    filtered.sort(key=lambda item: item.get("relevance_score", 0), reverse=True)
+    return filtered, skill_counter
+
+
 def get_vacancies_count(session: requests.Session, keyword: str) -> int:
     params = {"q": keyword, "page": 1}
 
@@ -507,9 +559,7 @@ def collect_role_vacancies(session: requests.Session, role: Dict, queries: List[
     return list(vacancy_map.values()), estimated_market_count, query_counts
 
 
-def enrich_vacancies_with_details(vacancies: List[Dict]) -> Counter:
-    skill_counter = Counter()
-
+def enrich_vacancies_with_details(vacancies: List[Dict]) -> None:
     with ThreadPoolExecutor(max_workers=MAX_DETAIL_WORKERS) as executor:
         future_to_row = {
             executor.submit(get_vacancy_details_robust, row["url"], row["title"]): row
@@ -528,10 +578,6 @@ def enrich_vacancies_with_details(vacancies: List[Dict]) -> Counter:
             row["skills"] = sorted(skills)
             row["description"] = details.get("description", "")
             row["requirements"] = details.get("requirements", "")
-            for skill in row["skills"]:
-                skill_counter[skill] += 1
-
-    return skill_counter
 
 
 def normalize_multiline_text(text: str) -> str:
@@ -576,8 +622,13 @@ def analyze_demand() -> Tuple[List[Dict], List[Dict], List[Dict]]:
             print(f"  Оценка спроса по лучшему запросу: {estimated_market_count}")
             print(f"  Уникальных вакансий для анализа: {len(vacancies)}")
 
-            skill_counter = enrich_vacancies_with_details(vacancies) if vacancies else Counter()
+            if vacancies:
+                enrich_vacancies_with_details(vacancies)
+                vacancies, skill_counter = filter_relevant_vacancies(role, vacancies)
+            else:
+                skill_counter = Counter()
             print(f"  Найдено уникальных навыков: {len(skill_counter)}")
+            print(f"  Релевантных вакансий после проверки: {len(vacancies)}")
             matched_keywords, missing_keywords = calculate_keyword_coverage(
                 [skill for skill, _ in skill_counter.most_common()],
                 role.get("ai_keywords", []),
